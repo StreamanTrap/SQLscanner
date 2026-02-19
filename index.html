@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сканер SQL-инъекций</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Сканер SQL-инъекций</h1>
+        <div class="input-group">
+            <input type="text" id="url-input" placeholder="Введите URL для сканирования (например, https://example.com/page?id=1)">
+            <button id="scan-btn">Сканировать</button>
+            <button id="stop-btn" style="display: none;">Остановить</button>
+        </div>
+        <div id="status-message" class="status-message"></div>
+        <div id="progress-container" style="display: none;" class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+            <p id="progress-text">0%</p>
+        </div>
+        <div id="results-container" style="display: none;">
+            <h2>Результаты сканирования</h2>
+            <div id="results-content"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+}
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+h1 {
+    text-align: center;
+    color: #0056b3;
+}
+.input-group {
+    display: flex;
+    margin-bottom: 20px;
+}
+#url-input {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+}
+#scan-btn, #stop-btn {
+    padding: 10px 15px;
+    border: none;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+}
+#stop-btn {
+    background-color: #dc3545;
+}
+#scan-btn:hover {
+    background-color: #0056b3;
+}
+#stop-btn:hover {
+    background-color: #c82333;
+}
+.status-message {
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    text-align: center;
+}
+.success { background-color: #d4edda; color: #155724; }
+.error { background-color: #f8d7da; color: #721c24; }
+.progress-container {
+    width: 100%;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+.progress-bar {
+    width: 0%;
+    height: 20px;
+    background-color: #007bff;
+    border-radius: 4px;
+    text-align: center;
+    line-height: 20px;
+    color: white;
+}
+#results-container {
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+}
+#results-content {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+.vulnerable {
+    color: #dc3545;
+    font-weight: bold;
+}
+.safe {
+    color: #28a745;
+}
