@@ -1,29 +1,47 @@
+// static/script.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 document.addEventListener('DOMContentLoaded', () => {
-    const urlInput = document.getElementById('url-input');
-    const scanBtn = document.getElementById('scan-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    const statusMessage = document.getElementById('status-message');
-    const progressBar = document.getElementById('progress-bar');
-    const progressText = document.getElementById('progress-text');
-    const progressContainer = document.getElementById('progress-container');
-    const resultsContainer = document.getElementById('results-container');
-    const resultsContent = document.getElementById('results-content');
+    console.log('🔧 JS загружен, инициализация...');
+    
+    // Проверяем наличие всех элементов
+    const elements = {
+        urlInput: document.getElementById('url-input'),
+        scanBtn: document.getElementById('scan-btn'),
+        stopBtn: document.getElementById('stop-btn'),
+        statusMessage: document.getElementById('status-message'),
+        progressContainer: document.getElementById('progress-container'),
+        progressText: document.getElementById('progress-text'),
+        progressBar: document.querySelector('#progress-bar .progress-fill') || document.getElementById('progress-bar'),
+        resultsContainer: document.getElementById('results-container'),
+        resultsContent: document.getElementById('results-content')
+    };
+
+    // Если элементы не найдены - выходим
+    if (!elements.scanBtn || !elements.urlInput) {
+        console.error('❌ Критические элементы не найдены!');
+        return;
+    }
+
+    console.log('✅ Все элементы найдены');
 
     let checkInterval;
+    let currentScanId = null;
 
-    scanBtn.addEventListener('click', async () => {
-        const url = urlInput.value;
+    // Обработчик кнопки СКАНИРОВАТЬ
+    elements.scanBtn.addEventListener('click', async () => {
+        const url = elements.urlInput.value.trim();
+        console.log('🚀 Запуск сканирования:', url);
+        
         if (!url) {
-            showStatus('Пожалуйста, введите URL.', 'error');
+            showStatus('Введите URL для сканирования!', 'error');
             return;
         }
 
+        // Сбрасываем UI
         resetUI();
-        scanBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-block';
-        progressContainer.style.display = 'block';
-        resultsContainer.style.display = 'none';
-        showStatus('Запуск сканирования...', 'success');
+        elements.scanBtn.style.display = 'none';
+        elements.stopBtn.style.display = 'inline-block';
+        elements.progressContainer.style.display = 'block';
+        showStatus('Запуск сканирования...', 'info');
 
         try {
             const response = await fetch('/api/scan_web', {
@@ -32,113 +50,146 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ url: url })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Сканирование запущено, ID:', data.scan_id);
-                startCheckingStatus(data.scan_id);
+            const data = await response.json();
+            console.log('📡 Ответ сервера:', data);
+
+            if (response.ok && data.scan_id) {
+                currentScanId = data.scan_id;
+                startStatusPolling();
             } else {
-                const errorData = await response.json();
-                showStatus(`Ошибка: ${errorData.error}`, 'error');
+                showStatus(data.error || 'Ошибка запуска сканирования', 'error');
                 resetUI();
             }
         } catch (error) {
-            showStatus('Ошибка сети при отправке запроса на сканирование.', 'error');
+            console.error('🌐 Ошибка сети:', error);
+            showStatus('Ошибка соединения с сервером', 'error');
             resetUI();
         }
     });
 
-    stopBtn.addEventListener('click', async () => {
+    // Обработчик кнопки ОСТАНОВИТЬ
+    elements.stopBtn.addEventListener('click', async () => {
         if (!currentScanId) return;
-
+        
+        console.log('⏹️ Запрос остановки:', currentScanId);
+        
         try {
-            const response = await fetch('/api/stop_scan', {
+            await fetch('/api/stop_scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ scan_id: currentScanId })
             });
-            const data = await response.json();
-            console.log(data.message);
-            clearInterval(checkInterval); // Остановить проверку статуса
+            clearInterval(checkInterval);
             stopScanProcess();
         } catch (error) {
-            console.error('Ошибка при остановке сканирования:', error);
+            console.error('Ошибка остановки:', error);
         }
     });
 
-    let currentScanId = null;
-
-    function startCheckingStatus(scanId) {
-        currentScanId = scanId;
+    // ОПРОС СТАТУСА (каждую секунду)
+    function startStatusPolling() {
         checkInterval = setInterval(async () => {
             try {
                 const response = await fetch('/api/scan_status');
                 const status = await response.json();
+                console.log('📊 Статус:', status);
 
-                updateProgressBar(status.progress);
-                progressText.textContent = `${status.progress}%`;
+                // Обновляем прогресс
+                const progress = Math.max(0, Math.min(100, status.progress || 0));
+                updateProgress(progress);
+                elements.progressText.textContent = `${progress}%`;
 
+                // Если завершено
                 if (!status.is_scanning) {
                     clearInterval(checkInterval);
-                    stopScanProcess();
+                    currentScanId = null;
+                    
                     if (status.results) {
                         displayResults(status.results);
-                        if (status.results.success) {
-                            showStatus(`Сканирование завершено. Найдено уязвимостей: ${status.results.vulnerabilities_found}`, 'success');
-                        } else {
-                            showStatus(`Сканирование завершено с ошибкой: ${status.results.error}`, 'error');
-                        }
+                        const vulnCount = status.results.vulnerabilities_found || 0;
+                        showStatus(`✅ Сканирование завершено. Уязвимостей: ${vulnCount}`, 'success');
                     }
+                    resetUI();
                 }
             } catch (error) {
-                console.error('Ошибка при проверке статуса:', error);
+                console.error('Ошибка опроса статуса:', error);
                 clearInterval(checkInterval);
-                stopScanProcess();
+                showStatus('Ошибка проверки статуса', 'error');
+                resetUI();
             }
-        }, 1000);
+        }, 800); // 0.8 секунды для плавности
     }
 
-    function stopScanProcess() {
-        resetUI();
-        showStatus('Сканирование остановлено.', 'success');
-    }
-
-    function updateProgressBar(percent) {
-        progressBar.style.width = `${percent}%`;
+    function updateProgress(percent) {
+        if (elements.progressBar) {
+            elements.progressBar.style.width = `${percent}%`;
+        }
     }
 
     function displayResults(results) {
-        let html = `<p><strong>URL:</strong> ${results.url}</p>`;
-        html += `<p><strong>Параметры:</strong> ${results.parameters.join(', ')}</p>`;
-        html += `<p><strong>Всего тестов:</strong> ${results.total_tests}</p>`;
-        html += `<p><strong>Найдено уязвимостей:</strong> ${results.vulnerabilities_found}</p>`;
+        let html = `
+            <div class="result-summary">
+                <div class="vuln-badge">${results.vulnerabilities_found || 0}</div>
+                <div class="result-info">
+                    <p><strong>🎯 Цель:</strong> ${results.url || 'Неизвестно'}</p>
+                    <p><strong>⏱️ Статус:</strong> ${results.success ? '✅ Успешно' : '❌ Ошибка'}</p>
+                </div>
+            </div>
+        `;
 
-        if (results.vulnerabilities_found > 0) {
-            html += '<h3>Найденные уязвимости:</h3>';
-            html += '<ul>';
-            results.results.forEach(result => {
-                if (result.is_vulnerable) {
-                    html += `<li class="vulnerable">Параметр: ${result.parameter}, Payload: ${result.payload}, URL: <a href="${result.url}" target="_blank">${result.url}</a></li>`;
-                }
+        if (results.success && results.vulnerabilities_found > 0) {
+            html += '<div class="issues-list"><h4>🔴 Найденные уязвимости:</h4>';
+            // Универсальный рендер результатов
+            const issues = results.issues || results.results || results.vulnerabilities || [];
+            issues.forEach((issue, index) => {
+                html += `
+                    <div class="issue-card vulnerable">
+                        <span class="issue-severity">${issue.severity || 'High'}</span>
+                        <div>
+                            <strong>${issue.type || `Уязвимость #${index+1}`}</strong>
+                            <p>${issue.description || issue.message || 'Подробности недоступны'}</p>
+                        </div>
+                    </div>
+                `;
             });
-            html += '</ul>';
+            html += '</div>';
         } else {
-            html += '<p class="safe">Уязвимости не найдены.</p>';
+            html += '<div class="safe-message">🟢 Критических уязвимостей не найдено</div>';
         }
 
-        resultsContent.innerHTML = html;
-        resultsContainer.style.display = 'block';
+        elements.resultsContent.innerHTML = html;
+        elements.resultsContainer.style.display = 'block';
     }
 
     function resetUI() {
-        scanBtn.style.display = 'inline-block';
-        stopBtn.style.display = 'none';
-        progressContainer.style.display = 'none';
-        updateProgressBar(0);
-        progressText.textContent = '0%';
+        elements.scanBtn.style.display = 'inline-block';
+        elements.stopBtn.style.display = 'none';
+        if (elements.progressContainer) elements.progressContainer.style.display = 'none';
+        if (elements.progressText) elements.progressText.textContent = '0%';
+        updateProgress(0);
+        currentScanId = null;
     }
 
-    function showStatus(message, type) {
-        statusMessage.textContent = message;
-        statusMessage.className = `status-message ${type}`;
+    function showStatus(message, type = 'info') {
+        if (elements.statusMessage) {
+            elements.statusMessage.textContent = message;
+            elements.statusMessage.className = `status-message ${type}`;
+            elements.statusMessage.style.display = 'block';
+            
+            // Авто-скрытие через 5 сек
+            setTimeout(() => {
+                elements.statusMessage.style.display = 'none';
+            }, 5000);
+        }
+        console.log(`[${type.toUpperCase()}] ${message}`);
     }
+
+    // Enter в поле запускает сканирование
+    elements.urlInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            elements.scanBtn.click();
+        }
+    });
+
+    console.log('🎮 Сканер готов к работе!');
 });
