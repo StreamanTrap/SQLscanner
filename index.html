@@ -4,28 +4,168 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Сканер SQL-инъекций</title>
-
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Абсолютные пути для GitHub Pages/PythonAnywhere -->
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="./static/style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Сканер SQL-инъекций</h1>
+        <h1>🛡️ Сканер уязвимостей</h1>
+        <p class="subtitle">Проверка SQL-инъекций и XSS</p>
+        
         <div class="input-group">
-            <input type="text" id="url-input" placeholder="Введите URL для сканирования (например, https://example.com/page?id=1)">
-            <button id="scan-btn">Сканировать</button>
-            <button id="stop-btn" style="display: none;">Остановить</button>
+            <div class="input-wrapper">
+                <input type="url" id="url-input" 
+                       placeholder="https://testphp.vulnweb.com/artists.php?artist=1" 
+                       value="">
+                <span class="input-icon">🔗</span>
+            </div>
+            <button id="scan-btn" class="btn-primary">🚀 Сканировать</button>
+            <button id="stop-btn" class="btn-danger" style="display: none;">⏹️ Остановить</button>
         </div>
-        <div id="status-message" class="status-message"></div>
-        <div id="progress-container" style="display: none;" class="progress-container">
-            <div id="progress-bar" class="progress-bar"></div>
+        
+        <div id="status-message" class="status-message hidden"></div>
+        
+        <div id="progress-container" class="progress-container hidden">
+            <div class="progress-header">
+                <span>Сканирование...</span>
+                <span id="scan-id-display"></span>
+            </div>
+            <div class="progress-wrapper">
+                <div id="progress-bar" class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
             <p id="progress-text">0%</p>
+            <div id="current-target" class="current-target"></div>
         </div>
-        <div id="results-container" style="display: none;">
-            <h2>Результаты сканирования</h2>
-            <div id="results-content"></div>
+        
+        <div id="results-container" class="results-container hidden">
+            <div class="results-header">
+                <h2>📊 Результаты сканирования</h2>
+                <button id="new-scan-btn" class="btn-secondary">🔄 Новое сканирование</button>
+            </div>
+            <div id="results-content" class="results-content"></div>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <!-- Резервные пути для JS -->
+    <script src="/static/script.js"></script>
+    <script src="./static/script.js"></script>
+    <script>
+        // Inline JS как fallback - сразу инициализируем
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM загружен, ищем элементы');
+            
+            const urlInput = document.getElementById('url-input');
+            const scanBtn = document.getElementById('scan-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            
+            if (!urlInput || !scanBtn || !stopBtn) {
+                console.error('Критические элементы не найдены!');
+                return;
+            }
+            
+            console.log('Элементы найдены, инициализация...');
+            
+            // Загружаем внешний JS асинхронно
+            const script = document.createElement('script');
+            script.src = '/static/script.js';
+            script.onerror = function() {
+                console.log('Внешний JS не загрузился, использую inline');
+                initInlineScanner();
+            };
+            document.head.appendChild(script);
+            
+            function initInlineScanner() {
+                console.log('Inline сканер активирован');
+                
+                scanBtn.addEventListener('click', async function() {
+                    const url = urlInput.value.trim();
+                    if (!url) {
+                        showStatus('Введите URL для сканирования!', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        showProgress(0, url);
+                        scanBtn.style.display = 'none';
+                        stopBtn.style.display = 'inline-block';
+                        
+                        const response = await fetch('/api/scan_web', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({url: url})
+                        });
+                        
+                        const result = await response.json();
+                        hideProgress();
+                        scanBtn.style.display = 'inline-block';
+                        stopBtn.style.display = 'none';
+                        
+                        if (result.results && result.results.success) {
+                            showResults(result.results);
+                        } else {
+                            showStatus(result.error || 'Ошибка сканирования', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Ошибка:', error);
+                        showStatus('Ошибка соединения с сервером', 'error');
+                        hideProgress();
+                        scanBtn.style.display = 'inline-block';
+                        stopBtn.style.display = 'none';
+                    }
+                });
+                
+                stopBtn.addEventListener('click', async function() {
+                    try {
+                        await fetch('/api/stop_scan', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({scan_id: document.getElementById('scan-id-display')?.textContent || ''})
+                        });
+                        hideProgress();
+                        scanBtn.style.display = 'inline-block';
+                        stopBtn.style.display = 'none';
+                    } catch (error) {
+                        console.error('Ошибка остановки:', error);
+                    }
+                });
+            }
+            
+            function showStatus(message, type = 'info') {
+                const statusEl = document.getElementById('status-message');
+                statusEl.textContent = message;
+                statusEl.className = `status-message ${type}`;
+                statusEl.classList.remove('hidden');
+            }
+            
+            function showProgress(percent, target) {
+                document.getElementById('progress-container').classList.remove('hidden');
+                document.getElementById('progress-text').textContent = `${percent}%`;
+                document.getElementById('progress-bar').querySelector('.progress-fill').style.width = `${percent}%`;
+                if (target) {
+                    document.getElementById('current-target').textContent = `Цель: ${target}`;
+                }
+            }
+            
+            function hideProgress() {
+                document.getElementById('progress-container').classList.add('hidden');
+            }
+            
+            function showResults(data) {
+                document.getElementById('results-container').classList.remove('hidden');
+                const content = document.getElementById('results-content');
+                content.innerHTML = `
+                    <div class="summary">
+                        <span class="vuln-count">${data.vulnerabilities_found || 0}</span>
+                        <span>уязвимостей найдено</span>
+                    </div>
+                    <div id="issues-list"></div>
+                `;
+            }
+        });
+    </script>
 </body>
 </html>
